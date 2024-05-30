@@ -33,34 +33,65 @@ class WDL(BaseModel):
 
     """
 
-    def __init__(self,
-                 linear_feature_columns, dnn_feature_columns, dnn_hidden_units=(256, 128),
-                 l2_reg_linear=1e-5,
-                 l2_reg_embedding=1e-5, l2_reg_dnn=0, init_std=0.0001, seed=1024, dnn_dropout=0, dnn_activation='relu',
-                 dnn_use_bn=False,
-                 task='binary', device='cpu', gpus=None):
+    def __init__(
+        self,
+        linear_feature_columns,
+        dnn_feature_columns,
+        dnn_hidden_units: Tuple(int, int) = (256, 128),
+        l2_reg_linear: float = 1e-5,
+        l2_reg_embedding: float = 1e-5,
+        l2_reg_dnn: int = 0,
+        init_std: float = 0.0001,
+        seed: int = 1024,
+        dnn_dropout: int = 0,
+        dnn_activation: str = "relu",
+        dnn_use_bn: bool = False,
+        task: str = "binary",
+        device: str = "cpu",
+        gpus=None,
+    ):
 
-        super(WDL, self).__init__(linear_feature_columns, dnn_feature_columns, l2_reg_linear=l2_reg_linear,
-                                  l2_reg_embedding=l2_reg_embedding, init_std=init_std, seed=seed, task=task,
-                                  device=device, gpus=gpus)
+        super(WDL, self).__init__(
+            linear_feature_columns,
+            dnn_feature_columns,
+            l2_reg_linear=l2_reg_linear,
+            l2_reg_embedding=l2_reg_embedding,
+            init_std=init_std,
+            seed=seed,
+            task=task,
+            device=device,
+            gpus=gpus,
+        )
 
-        self.use_dnn = len(dnn_feature_columns) > 0 and len(
-            dnn_hidden_units) > 0
+        self.use_dnn = len(dnn_feature_columns) > 0 and len(dnn_hidden_units) > 0
         if self.use_dnn:
-            self.dnn = DNN(self.compute_input_dim(dnn_feature_columns), dnn_hidden_units,
-                           activation=dnn_activation, l2_reg=l2_reg_dnn, dropout_rate=dnn_dropout, use_bn=dnn_use_bn,
-                           init_std=init_std, device=device)
+            self.dnn = DNN(
+                self.compute_input_dim(dnn_feature_columns),
+                dnn_hidden_units,
+                activation=dnn_activation,
+                l2_reg=l2_reg_dnn,
+                dropout_rate=dnn_dropout,
+                use_bn=dnn_use_bn,
+                init_std=init_std,
+                device=device,
+            )
             self.dnn_linear = nn.Linear(dnn_hidden_units[-1], 1, bias=False).to(device)
             self.add_regularization_weight(
-                filter(lambda x: 'weight' in x[0] and 'bn' not in x[0], self.dnn.named_parameters()), l2=l2_reg_dnn)
+                filter(
+                    lambda x: "weight" in x[0] and "bn" not in x[0],
+                    self.dnn.named_parameters(),
+                ),
+                l2=l2_reg_dnn,
+            )
             self.add_regularization_weight(self.dnn_linear.weight, l2=l2_reg_dnn)
 
         self.to(device)
 
     def forward(self, X):
 
-        sparse_embedding_list, dense_value_list = self.input_from_feature_columns(X, self.dnn_feature_columns,
-                                                                                  self.embedding_dict)
+        sparse_embedding_list, dense_value_list = self.input_from_feature_columns(
+            X, self.dnn_feature_columns, self.embedding_dict
+        )
         logit = self.linear_model(X)
 
         if self.use_dnn:
